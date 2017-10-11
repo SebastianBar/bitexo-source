@@ -1,0 +1,9 @@
+Building BitExo
+
+See doc/readme-qt.rst for instructions on building BitExo QT,
+the intended-for-end-users, nice-graphical-interface, reference
+implementation of BitExo.
+
+See doc/build-*.txt for instructions on building bitexod,
+the intended-for-services, no-graphical-interface, reference
+implementation of BitExo.
