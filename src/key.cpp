@@ -371,23 +371,23 @@ bool CKey::Sign(uint256 hash, std::vector<unsigned char>& vchSig)
     BIGNUM *halforder = BN_CTX_get(ctx);
     EC_GROUP_get_order(group, order, ctx);
     BN_rshift1(halforder, order);
-    
+
     const BIGNUM *pr, *ps;
     ECDSA_SIG_get0(sig, &pr, &ps);
     if (BN_cmp(ps, halforder) > 0) {
         // enforce low S values, by negating the value (modulo the order) if above order/2.
         BIGNUM *nps = BN_dup(ps);
         if(!nps)
-            throw std::runtime_error("CKey : BN_dup() returned NULL");
+            throw std::runtime_error("CKey : BN_dup() returned NULL"); 
         BIGNUM *npr = BN_dup(pr);
         if(!npr)
         {
             BN_free(nps);
-            throw std::runtime_error("CKey : BN_dup() returned NULL");
+            throw std::runtime_error("CKey : BN_dup() returned NULL"); 
         }
 
         BN_sub(nps, order, nps);
-        ECDSA_SIG_set0(sig, npr, nps);
+        ECDSA_SIG_set0(sig, npr, nps);  
     }
     BN_CTX_end(ctx);
     BN_CTX_free(ctx);
@@ -485,11 +485,21 @@ bool CKey::SetCompactSignature(uint256 hash, const std::vector<unsigned char>& v
 
 bool CKey::Verify(uint256 hash, const std::vector<unsigned char>& vchSig)
 {
-    // -1 = error, 0 = bad sig, 1 = good
-    if (ECDSA_verify(0, (unsigned char*)&hash, sizeof(hash), &vchSig[0], vchSig.size(), pkey) != 1)
+    // BIP66 Compatibility:
+    // New versions of OpenSSL (1.0.0p+ and 1.0.1k+) will reject non-canonical DER signatures. de/re-serialize first.
+    unsigned char *norm_der = NULL;
+    ECDSA_SIG *norm_sig = ECDSA_SIG_new();
+    const unsigned char* sigptr = &vchSig[0];
+    d2i_ECDSA_SIG(&norm_sig, &sigptr, vchSig.size());
+    int derlen = i2d_ECDSA_SIG(norm_sig, &norm_der);
+    ECDSA_SIG_free(norm_sig);
+    if (derlen <= 0)
         return false;
 
-    return true;
+    // -1 = error, 0 = bad sig, 1 = good
+    bool ret = ECDSA_verify(0, (unsigned char*)&hash, sizeof(hash), norm_der, derlen, pkey) == 1;
+    OPENSSL_free(norm_der);
+    return ret;
 }
 
 bool CKey::IsValid()
